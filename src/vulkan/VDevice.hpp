@@ -1,0 +1,39 @@
+#pragma once
+
+#include "Vulkan.hpp"
+#include <vector>
+
+// Encapsulates a Vulkan physical and logical device.
+class VDevice {
+  private:
+    void pickPhysicalDevice();
+    void createLogicalDevice();
+
+    // Helper functions for physical device selection.
+    bool isDeviceSuitable(VkPhysicalDevice device);
+    bool checkDeviceExtensionSupport(VkPhysicalDevice device);
+
+    VkPhysicalDevice physicalDevice_ = VK_NULL_HANDLE;
+    VkDevice device_;
+    VkInstance instance_;
+    VkSurfaceKHR surface_;
+
+    VkQueue graphicsQueue_;
+    VkQueue presentQueue_;
+
+  public:
+    VDevice(VkInstance instance, VkSurfaceKHR surface);
+    ~VDevice();
+
+    VDevice(const VDevice &) = delete;
+    VDevice &operator=(const VDevice &) = delete;
+
+    // Accessors for core device components.
+    VkDevice device() { return device_; }
+    VkPhysicalDevice physicalDevice() { return physicalDevice_; }
+    VkQueue graphicsQueue() { return graphicsQueue_; }
+    VkQueue presentQueue() { return presentQueue_; }
+    VkSurfaceKHR surface() { return surface_; }
+
+    QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
+};

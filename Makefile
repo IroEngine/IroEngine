@@ -1,20 +1,16 @@
 # Compiler
 CXX := g++
+SHADERC := glslc
 
 # Compiler flags
-# -std=c++26: Use the C++26 standard
-# -g: Generate debugging information
-# -O2: Enable optimizations. O1: Minor compiler optimizations | O2: Standard compiler optimizations | O3: Aggressive compiler optimizations
-# -Wall: Enable all warnings
 CXXFLAGS := -std=c++26 -g -O2 -Wall
 
 # Linker flags and libraries
-# Use pkg-config to get the necessary flags for Vulkan and GLFW.
 LDFLAGS := $(shell pkg-config --libs vulkan glfw3)
 LDFLAGS += -L./src/libs
 
 # Include directories
-CPPFLAGS := -I./src/libs
+CPPFLAGS := -I./src/libs -I./src
 
 # Project structure
 TARGET := bin/vulkan_project
@@ -23,8 +19,14 @@ SRC_FILES := $(foreach dir,$(SRC_DIRS),$(wildcard $(dir)/*.cpp))
 OBJ_DIR := obj
 OBJ_FILES := $(patsubst ./src/%.cpp,$(OBJ_DIR)/%.o,$(SRC_FILES))
 
-# Check if the goal is 'test' to enable quiet compilation.
-# If MAKECMDGOALS contains 'test', Q will be set to '@' to silence commands.
+# Shader files
+SHADER_SRC_DIR := ./src/shaders
+SHADER_BUILD_DIR := ./bin/shaders
+SHADER_SRC_FILES := $(wildcard $(SHADER_SRC_DIR)/*.vert $(SHADER_SRC_DIR)/*.frag)
+SHADER_OBJ_FILES := $(patsubst $(SHADER_SRC_DIR)/%.vert,$(SHADER_BUILD_DIR)/%.vert.spv,$(wildcard $(SHADER_SRC_DIR)/*.vert))
+SHADER_OBJ_FILES += $(patsubst $(SHADER_SRC_DIR)/%.frag,$(SHADER_BUILD_DIR)/%.frag.spv,$(wildcard $(SHADER_SRC_DIR)/*.frag))
+
+
 Q :=
 ifneq (,$(findstring test,$(MAKECMDGOALS)))
   Q := @
@@ -34,7 +36,7 @@ endif
 all: $(TARGET)
 
 # Link the program
-$(TARGET): $(OBJ_FILES)
+$(TARGET): $(OBJ_FILES) $(SHADER_OBJ_FILES)
 	@mkdir -p $(@D)
 	$(Q)$(CXX) $(CXXFLAGS) $(OBJ_FILES) -o $@ $(LDFLAGS)
 
@@ -43,8 +45,13 @@ $(OBJ_DIR)/%.o: ./src/%.cpp
 	@mkdir -p $(@D)
 	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 
+# Compile shaders
+$(SHADER_BUILD_DIR)/%.spv: $(SHADER_SRC_DIR)/%
+	@mkdir -p $(@D)
+	$(Q)$(SHADERC) $< -o $@
+
 # Target to build and run the application
-test: $(TARGET)
+test: clean $(TARGET)
 	@./$(TARGET)
 
 # Clean up build files

@@ -1,0 +1,9 @@
+# Build files
+/obj
+/bin
+/dev
+
+
+# IDE folders
+/.vscode
+/.idea
