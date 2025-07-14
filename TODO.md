@@ -3,7 +3,7 @@
 ### General
 - [x] Create a GitHub and the starts of the engine
 - [ ] Create an icon
-- [ ] Create a Discord server
+- [x] Create a Discord server
 ### Vulkan
 - [x] Select hardware
 - [x] Create a logical device
@@ -11,5 +11,3 @@
 - [x] Create a swap chain
 - [x] Create image views
 - [x] Render a basic blue window
-### Build System
-- [ ] Move to CMake

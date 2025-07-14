@@ -13,7 +13,7 @@ LDFLAGS += -L./src/libs
 CPPFLAGS := -I./src/libs -I./src
 
 # Project structure
-TARGET := bin/vulkan_project
+TARGET := bin/IroEngine
 SRC_DIRS := $(shell find ./src -type d)
 SRC_FILES := $(foreach dir,$(SRC_DIRS),$(wildcard $(dir)/*.cpp))
 OBJ_DIR := obj
