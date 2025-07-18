@@ -20,25 +20,26 @@ void Engine::run() {
     cleanup();
 }
 
+void Engine::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
+    auto engine = reinterpret_cast<Engine*>(glfwGetWindowUserPointer(window));
+    engine->framebufferResized = true;
+}
+
 void Engine::init() {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE); // Resizing will be handled later
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE); // Allow resizing
     window = glfwCreateWindow(WIDTH, HEIGHT, "Iro Engine", nullptr, nullptr);
+    glfwSetWindowUserPointer(window, this);
+    glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 
     createInstance();
     createSurface();
 
     vDevice = std::make_unique<VDevice>(instance, surface);
-    vSwapChain = std::make_unique<VSwapChain>(
-        *vDevice, VkExtent2D{static_cast<uint32_t>(WIDTH),
-                               static_cast<uint32_t>(HEIGHT)});
-
-    // The pipeline no longer needs the swap chain extent, as viewport and scissor
-    // are now dynamic.
-    vPipeline = std::make_unique<VPipeline>(
-        *vDevice, "bin/shaders/shader.vert.spv",
-        "bin/shaders/shader.frag.spv", vSwapChain->getRenderPass());
+    
+    // Initial creation of swap chain and dependent objects
+    recreateSwapChain();
 
     createCommandPool();
     createCommandBuffers();
@@ -55,6 +56,10 @@ void Engine::mainLoop() {
 }
 
 void Engine::cleanup() {
+    // Destroy swap chain and pipeline before other resources
+    vPipeline.reset();
+    vSwapChain.reset();
+
     // Destroy semaphores and fences tied to MAX_FRAMES_IN_FLIGHT
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         vkDestroySemaphore(vDevice->device(), imageAvailableSemaphores[i],
@@ -71,8 +76,6 @@ void Engine::cleanup() {
     vkDestroyCommandPool(vDevice->device(), commandPool, nullptr);
 
     // Smart pointers automatically handle the destruction of these objects.
-    vPipeline.reset();
-    vSwapChain.reset();
     vDevice.reset();
 
     vkDestroySurfaceKHR(instance, surface, nullptr);
@@ -82,8 +85,25 @@ void Engine::cleanup() {
     glfwTerminate();
 }
 
+void Engine::recreateSwapChain() {
+    int width = 0, height = 0;
+    glfwGetFramebufferSize(window, &width, &height);
+    while (width == 0 || height == 0) {
+        glfwGetFramebufferSize(window, &width, &height);
+        glfwWaitEvents();
+    }
+    
+    vkDeviceWaitIdle(vDevice->device());
+    
+    vPipeline.reset();
+    vSwapChain.reset();
+    
+    vSwapChain = std::make_unique<VSwapChain>(*vDevice, VkExtent2D{static_cast<uint32_t>(width), static_cast<uint32_t>(height)});
+    vPipeline = std::make_unique<VPipeline>(*vDevice, "bin/shaders/shader.vert.spv", "bin/shaders/shader.frag.spv", vSwapChain->getRenderPass());
+}
+
+
 void Engine::createInstance() {
-    // Using designated initializers for struct setup improves clarity.
     VkApplicationInfo appInfo{
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
         .pApplicationName = "Iro Engine",
@@ -195,6 +215,7 @@ void Engine::drawFrame() {
         imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        recreateSwapChain();
         return;
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
         throw std::runtime_error("Failed to acquire swap chain image.");
@@ -243,7 +264,7 @@ void Engine::drawFrame() {
     vkCmdSetScissor(commandBuffers[currentFrame], 0, 1, &scissor);
 
     vPipeline->bind(commandBuffers[currentFrame]);
-    vkCmdDraw(commandBuffers[currentFrame], 3, 1, 0, 0); // Draw hardcoded triangle
+    vkCmdDraw(commandBuffers[currentFrame], 3, 1, 0, 0); // Draw a hardcoded triangle
     vkCmdEndRenderPass(commandBuffers[currentFrame]);
 
     if (vkEndCommandBuffer(commandBuffers[currentFrame]) != VK_SUCCESS) {
@@ -282,7 +303,14 @@ void Engine::drawFrame() {
         .pImageIndices = &imageIndex,
     };
 
-    vkQueuePresentKHR(vDevice->presentQueue(), &presentInfo);
+    result = vkQueuePresentKHR(vDevice->presentQueue(), &presentInfo);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
+        framebufferResized = false;
+        recreateSwapChain();
+    } else if (result != VK_SUCCESS) {
+        throw std::runtime_error("Failed to present swap chain image.");
+    }
 
     currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }

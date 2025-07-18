@@ -5,6 +5,17 @@
 
 VSwapChain::VSwapChain(VDevice &device, VkExtent2D extent)
     : vDevice(device), windowExtent(extent) {
+    init();
+}
+
+VSwapChain::VSwapChain(VDevice &device, VkExtent2D extent, std::shared_ptr<VSwapChain> previous)
+    : vDevice(device), windowExtent(extent), oldSwapChain(previous) {
+    init();
+    oldSwapChain = nullptr;
+}
+
+
+void VSwapChain::init() {
     createSwapChain();
     createImageViews();
     createRenderPass();
@@ -50,7 +61,7 @@ void VSwapChain::createSwapChain() {
         .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
         .presentMode = presentMode,
         .clipped = VK_TRUE,
-        .oldSwapchain = VK_NULL_HANDLE,
+        .oldSwapchain = oldSwapChain == nullptr ? VK_NULL_HANDLE : oldSwapChain->swapChain,
     };
 
     QueueFamilyIndices indices =

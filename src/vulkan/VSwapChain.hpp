@@ -2,12 +2,12 @@
 
 #include "VDevice.hpp"
 #include <vector>
+#include <memory>
 
-// Manages the Vulkan swap chain and its associated resources like
-// images, views, framebuffers, and the render pass.
-class VSwapChain
-{
+// Manages the Vulkan swap chain and its associated resources like images, views, framebuffers, and the render pass.
+class VSwapChain {
 private:
+    void init();
     void createSwapChain();
     void createImageViews();
     void createRenderPass();
@@ -24,6 +24,7 @@ private:
     VkExtent2D windowExtent;
 
     VkSwapchainKHR swapChain;
+    std::shared_ptr<VSwapChain> oldSwapChain;
     VkRenderPass renderPass;
 
     std::vector<VkImage> swapChainImages;
@@ -34,6 +35,7 @@ private:
 
 public:
     VSwapChain(VDevice &device, VkExtent2D windowExtent);
+    VSwapChain(VDevice &device, VkExtent2D windowExtent, std::shared_ptr<VSwapChain> previous);
     ~VSwapChain();
 
     VSwapChain(const VSwapChain &) = delete;

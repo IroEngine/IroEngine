@@ -6,7 +6,7 @@
 
 // Creates and manages a Vulkan graphics pipeline.
 class VPipeline {
-  private:
+private:
     void createGraphicsPipeline(const std::string &vertFilepath,
                                 const std::string &fragFilepath,
                                 VkRenderPass renderPass);
@@ -16,7 +16,7 @@ class VPipeline {
     VkPipeline graphicsPipeline;
     VkPipelineLayout pipelineLayout;
 
-  public:
+public:
     VPipeline(VDevice &device, const std::string &vertFilepath,
               const std::string &fragFilepath, VkRenderPass renderPass);
     ~VPipeline();

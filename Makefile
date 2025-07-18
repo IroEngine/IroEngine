@@ -3,7 +3,7 @@ CXX := g++
 SHADERC := glslc
 
 # Compiler flags
-CXXFLAGS := -std=c++26 -g -O2 -Wall
+CXXFLAGS := -std=c++23 -g -O2 -Wall
 
 # Linker flags and libraries
 LDFLAGS := $(shell pkg-config --libs vulkan glfw3)

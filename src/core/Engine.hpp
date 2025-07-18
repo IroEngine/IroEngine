@@ -9,7 +9,7 @@
 #include <vector>
 
 class Engine {
-  private:
+private:
     // Window dimensions.
     static constexpr int WIDTH = 800;
     static constexpr int HEIGHT = 600;
@@ -27,6 +27,7 @@ class Engine {
     void createCommandPool();
     void createCommandBuffers();
     void createSyncObjects();
+    void recreateSwapChain();
 
     // Per-frame logic
     void drawFrame();
@@ -36,6 +37,7 @@ class Engine {
     VkInstance instance;
     VkSurfaceKHR surface;
     size_t currentFrame = 0;
+    bool framebufferResized = false;
 
     // --- Vulkan Abstractions ---
     // These smart pointers manage the lifetime of the core Vulkan components.
@@ -51,6 +53,8 @@ class Engine {
     std::vector<VkFence> inFlightFences;
     std::vector<VkFence> imagesInFlight;
 
-  public:
+    static void framebufferResizeCallback(GLFWwindow *window, int width, int height);
+
+public:
     void run();
 };
