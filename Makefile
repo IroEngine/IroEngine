@@ -9,6 +9,14 @@ CXXFLAGS := -std=c++26 -g -O2 -Wall
 LDFLAGS := $(shell pkg-config --libs vulkan glfw3)
 LDFLAGS += -L./src/libs
 
+# Check the Operating System
+OS := $(shell uname -s)
+
+# Add fontconfig library only if we are on Linux
+ifeq ($(OS), Linux)
+    LDFLAGS += $(shell pkg-config --libs fontconfig)
+endif
+
 # Include directories
 CPPFLAGS := -I./src/libs -I./src
 
@@ -56,7 +64,7 @@ test: clean $(TARGET)
 
 # Clean up build files
 clean:
-	rm -rf ./bin ./obj
+	@rm -rf ./bin ./obj
 
 # Phony targets
 .PHONY: all clean test

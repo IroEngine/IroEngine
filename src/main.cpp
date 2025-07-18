@@ -2,7 +2,17 @@
 #include <iostream>
 #include <stdexcept>
 
+#ifdef __linux__
+// Linux exclusive libraries
+#include <fontconfig/fontconfig.h>
+#endif
+
 int main() {
+    #ifdef __linux__
+    // Linux fix: Fontconfig warning: using without calling FcInit()
+    FcInit();
+    #endif
+
     // The Engine class encapsulates the application's entire lifecycle.
     // It's instantiated here in the main function, which serves as the entry point.
     Engine engine{};

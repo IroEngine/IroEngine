@@ -12,8 +12,9 @@
 - [x] Create image views
 - [x] Render a basic blue window
 - [ ] Implement swap chain recreation for window resizing
+- [ ] Move shader files to build into the build file instead of a separate folder
 - [ ] Render a triangle
 - [ ] Render text
 - [ ] Create a basic UI
 ### Fixes
-- [x] Fix semaphore reuse issue
+- [x] Fix semaphore reuse issue: `VUID-vkQueueSubmit-pSignalSemaphores-00067`
