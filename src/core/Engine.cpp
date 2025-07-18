@@ -55,13 +55,18 @@ void Engine::mainLoop() {
 }
 
 void Engine::cleanup() {
+    // Destroy semaphores and fences tied to MAX_FRAMES_IN_FLIGHT
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        vkDestroySemaphore(vDevice->device(), renderFinishedSemaphores[i],
-                           nullptr);
         vkDestroySemaphore(vDevice->device(), imageAvailableSemaphores[i],
                            nullptr);
         vkDestroyFence(vDevice->device(), inFlightFences[i], nullptr);
     }
+
+    // Destroy semaphores tied to swapchain image count
+    for (auto semaphore : renderFinishedSemaphores) {
+        vkDestroySemaphore(vDevice->device(), semaphore, nullptr);
+    }
+
 
     vkDestroyCommandPool(vDevice->device(), commandPool, nullptr);
 
@@ -151,8 +156,10 @@ void Engine::createCommandBuffers() {
 
 void Engine::createSyncObjects() {
     imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-    renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
     inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+    
+    renderFinishedSemaphores.resize(vSwapChain->imageCount());
+
     imagesInFlight.resize(vSwapChain->imageCount(), VK_NULL_HANDLE);
 
     VkSemaphoreCreateInfo semaphoreInfo{
@@ -160,14 +167,20 @@ void Engine::createSyncObjects() {
     VkFenceCreateInfo fenceInfo{.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
                                 .flags = VK_FENCE_CREATE_SIGNALED_BIT};
 
+    // Create sync objects tied to frames in flight
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         if (vkCreateSemaphore(vDevice->device(), &semaphoreInfo, nullptr,
                               &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-            vkCreateSemaphore(vDevice->device(), &semaphoreInfo, nullptr,
-                              &renderFinishedSemaphores[i]) != VK_SUCCESS ||
             vkCreateFence(vDevice->device(), &fenceInfo, nullptr,
                           &inFlightFences[i]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create sync objects for a frame.");
+        }
+    }
+
+    // Create sync objects tied to swapchain images
+    for (size_t i = 0; i < vSwapChain->imageCount(); i++) {
+        if (vkCreateSemaphore(vDevice->device(), &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create render finished semaphores.");
         }
     }
 }
@@ -182,7 +195,6 @@ void Engine::drawFrame() {
         imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        // TODO: Implement swap chain recreation for window resizing.
         return;
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
         throw std::runtime_error("Failed to acquire swap chain image.");
@@ -241,7 +253,8 @@ void Engine::drawFrame() {
     VkSemaphore waitSemaphores[] = {imageAvailableSemaphores[currentFrame]};
     VkPipelineStageFlags waitStages[] = {
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-    VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[currentFrame]};
+    
+    VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[imageIndex]};
 
     VkSubmitInfo submitInfo{
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
