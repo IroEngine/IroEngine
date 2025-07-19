@@ -29,10 +29,9 @@ OBJ_FILES := $(patsubst ./src/%.cpp,$(OBJ_DIR)/%.o,$(SRC_FILES))
 
 # Shader files
 SHADER_SRC_DIR := ./src/shaders
-SHADER_BUILD_DIR := ./bin/shaders
 SHADER_SRC_FILES := $(wildcard $(SHADER_SRC_DIR)/*.vert $(SHADER_SRC_DIR)/*.frag)
-SHADER_OBJ_FILES := $(patsubst $(SHADER_SRC_DIR)/%.vert,$(SHADER_BUILD_DIR)/%.vert.spv,$(wildcard $(SHADER_SRC_DIR)/*.vert))
-SHADER_OBJ_FILES += $(patsubst $(SHADER_SRC_DIR)/%.frag,$(SHADER_BUILD_DIR)/%.frag.spv,$(wildcard $(SHADER_SRC_DIR)/*.frag))
+SHADER_OBJ_FILES := $(patsubst $(SHADER_SRC_DIR)/%.vert,obj/shaders/%.vert.o,$(wildcard $(SHADER_SRC_DIR)/*.vert))
+SHADER_OBJ_FILES += $(patsubst $(SHADER_SRC_DIR)/%.frag,obj/shaders/%.frag.o,$(wildcard $(SHADER_SRC_DIR)/*.frag))
 
 
 Q :=
@@ -46,17 +45,29 @@ all: $(TARGET)
 # Link the program
 $(TARGET): $(OBJ_FILES) $(SHADER_OBJ_FILES)
 	@mkdir -p $(@D)
-	$(Q)$(CXX) $(CXXFLAGS) $(OBJ_FILES) -o $@ $(LDFLAGS)
+	$(Q)$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
 
 # Compile source files into object files
 $(OBJ_DIR)/%.o: ./src/%.cpp
 	@mkdir -p $(@D)
 	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 
-# Compile shaders
-$(SHADER_BUILD_DIR)/%.spv: $(SHADER_SRC_DIR)/%
+# Compile and embed shaders into object files
+obj/shaders/%.vert.o: $(SHADER_SRC_DIR)/%.vert
 	@mkdir -p $(@D)
-	$(Q)$(SHADERC) $< -o $@
+	$(eval TMP_SPV := $(shell mktemp))
+	$(eval SYMBOL_NAME := $(subst .,_,$(notdir $<)))
+	$(Q)$(SHADERC) $< -o $(TMP_SPV)
+	$(Q)xxd -i -n spirv_$(SYMBOL_NAME) $(TMP_SPV) | $(CXX) $(CXXFLAGS) $(CPPFLAGS) -x c++ -c - -o $@
+	$(Q)rm $(TMP_SPV)
+
+obj/shaders/%.frag.o: $(SHADER_SRC_DIR)/%.frag
+	@mkdir -p $(@D)
+	$(eval TMP_SPV := $(shell mktemp))
+	$(eval SYMBOL_NAME := $(subst .,_,$(notdir $<)))
+	$(Q)$(SHADERC) $< -o $(TMP_SPV)
+	$(Q)xxd -i -n spirv_$(SYMBOL_NAME) $(TMP_SPV) | $(CXX) $(CXXFLAGS) $(CPPFLAGS) -x c++ -c - -o $@
+	$(Q)rm $(TMP_SPV)
 
 # Target to build and run the application
 test: all

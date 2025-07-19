@@ -105,7 +105,7 @@ void Engine::recreateSwapChain() {
     vSwapChain.reset();
     
     vSwapChain = std::make_unique<VSwapChain>(*vDevice, VkExtent2D{static_cast<uint32_t>(width), static_cast<uint32_t>(height)});
-    vPipeline = std::make_unique<VPipeline>(*vDevice, "shaders/shader.vert.spv", "shaders/shader.frag.spv", vSwapChain->getRenderPass());
+    vPipeline = std::make_unique<VPipeline>(*vDevice, "core.vert", "core.frag", vSwapChain->getRenderPass());
 }
 
 

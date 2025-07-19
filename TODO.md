@@ -13,7 +13,7 @@
 - [x] Create image views
 - [x] Render a basic blue window
 - [x] Implement swap chain recreation for window resizing
-- [ ] Move shader files to build into the build file instead of a separate folder
+- [x] Move shader files to build into the build file instead of a separate folder
 ### UI
 - [ ] Render a triangle
 - [ ] Render text

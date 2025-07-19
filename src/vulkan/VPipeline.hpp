@@ -7,8 +7,8 @@
 // Creates and manages a Vulkan graphics pipeline.
 class VPipeline {
 private:
-    void createGraphicsPipeline(const std::string &vertFilepath,
-                                const std::string &fragFilepath,
+    void createGraphicsPipeline(const std::string &vertShaderName,
+                                const std::string &fragShaderName,
                                 VkRenderPass renderPass);
     VkShaderModule createShaderModule(const std::vector<char> &code);
 
@@ -17,8 +17,8 @@ private:
     VkPipelineLayout pipelineLayout;
 
 public:
-    VPipeline(VDevice &device, const std::string &vertFilepath,
-              const std::string &fragFilepath, VkRenderPass renderPass);
+    VPipeline(VDevice &device, const std::string &vertShaderName,
+              const std::string &fragShaderName, VkRenderPass renderPass);
     ~VPipeline();
 
     VPipeline(const VPipeline &) = delete;
