@@ -4,6 +4,7 @@
 #include "vulkan/VPipeline.hpp"
 #include "vulkan/VSwapChain.hpp"
 #include "vulkan/Vulkan.hpp"
+#include "core/Discord.hpp"
 
 #include <memory>
 #include <vector>
@@ -38,6 +39,7 @@ private:
     VkSurfaceKHR surface;
     size_t currentFrame = 0;
     bool framebufferResized = false;
+    std::unique_ptr<Discord> discord;
 
     // --- Vulkan Abstractions ---
     // These smart pointers manage the lifetime of the core Vulkan components.

@@ -4,7 +4,7 @@
 - [x] Create a GitHub and the starts of the engine
 - [x] Create a Discord server
 - [ ] Make a placeholder icon
-- [ ] Implement Discord RPC
+- [x] Implement Discord RPC
 ### Vulkan
 - [x] Select hardware
 - [x] Create a logical device

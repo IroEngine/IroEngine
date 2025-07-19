@@ -44,11 +44,15 @@ void Engine::init() {
     createCommandPool();
     createCommandBuffers();
     createSyncObjects();
+    
+    discord = std::make_unique<Discord>();
+    discord->init();
 }
 
 void Engine::mainLoop() {
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+        discord->update();
         drawFrame();
     }
     // Wait for the logical device to finish operations before cleanup.
@@ -83,6 +87,8 @@ void Engine::cleanup() {
 
     glfwDestroyWindow(window);
     glfwTerminate();
+    
+    discord.reset();
 }
 
 void Engine::recreateSwapChain() {
@@ -99,7 +105,7 @@ void Engine::recreateSwapChain() {
     vSwapChain.reset();
     
     vSwapChain = std::make_unique<VSwapChain>(*vDevice, VkExtent2D{static_cast<uint32_t>(width), static_cast<uint32_t>(height)});
-    vPipeline = std::make_unique<VPipeline>(*vDevice, "bin/shaders/shader.vert.spv", "bin/shaders/shader.frag.spv", vSwapChain->getRenderPass());
+    vPipeline = std::make_unique<VPipeline>(*vDevice, "shaders/shader.vert.spv", "shaders/shader.frag.spv", vSwapChain->getRenderPass());
 }
 
 

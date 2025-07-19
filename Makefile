@@ -7,7 +7,7 @@ CXXFLAGS := -std=c++23 -g -O2 -Wall
 
 # Linker flags and libraries
 LDFLAGS := $(shell pkg-config --libs vulkan glfw3)
-LDFLAGS += -L./src/libs
+LDFLAGS += -L./src/lib/discord -Wl,-rpath,'$$ORIGIN' -ldiscord_partner_sdk -lpthread -ldl
 
 # Check the Operating System
 OS := $(shell uname -s)
@@ -18,7 +18,7 @@ ifeq ($(OS), Linux)
 endif
 
 # Include directories
-CPPFLAGS := -I./src/libs -I./src
+CPPFLAGS := -I./src/lib -I./src
 
 # Project structure
 TARGET := bin/IroEngine
@@ -59,8 +59,9 @@ $(SHADER_BUILD_DIR)/%.spv: $(SHADER_SRC_DIR)/%
 	$(Q)$(SHADERC) $< -o $@
 
 # Target to build and run the application
-test: clean $(TARGET)
-	@./$(TARGET)
+test: all
+	@cp src/lib/discord/libdiscord_partner_sdk.so bin/
+	@cd bin && ./IroEngine
 
 # Clean up build files
 clean:
