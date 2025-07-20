@@ -6,5 +6,5 @@ A game engine for both the developer and the gamer.
 
 ## Compatibility
 - **Linux:** Full
-- **Windows:** Maybe, do not have a way to test if Windows works. Will have to wait for confirmation of it working before adding it in any release.
+- **Windows:** No. Will likely have an effort to add it later on. Right now as a solo developer, Windows support takes too much time and effort.
 - **MacOS:** No
