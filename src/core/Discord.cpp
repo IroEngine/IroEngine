@@ -22,14 +22,14 @@ void Discord::init() {
     uint64_t clientId = 1395908581886394419;
     client->SetApplicationId(clientId);
 
-    // --- Create the Activity ---
+    // Create the Activity
     discordpp::Activity activity{};
     activity.SetState("Developing");
     activity.SetType(discordpp::ActivityTypes::Playing);
 
     // Set Assets
     discordpp::ActivityAssets assets{};
-    assets.SetLargeImage("iro-engine-logo");
+    assets.SetLargeImage("placeholder_icon");
     assets.SetLargeText("Iro Engine");
     activity.SetAssets(assets);
 
