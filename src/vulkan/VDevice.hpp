@@ -5,7 +5,7 @@
 
 // Encapsulates a Vulkan physical and logical device.
 class VDevice {
-  private:
+private:
     void pickPhysicalDevice();
     void createLogicalDevice();
 
@@ -13,16 +13,18 @@ class VDevice {
     bool isDeviceSuitable(VkPhysicalDevice device);
     bool checkDeviceExtensionSupport(VkPhysicalDevice device);
 
+    VkPhysicalDeviceProperties properties;
     VkPhysicalDevice physicalDevice_ = VK_NULL_HANDLE;
     VkDevice device_;
     VkInstance instance_;
     VkSurfaceKHR surface_;
+    GLFWwindow* window_;
 
     VkQueue graphicsQueue_;
     VkQueue presentQueue_;
 
-  public:
-    VDevice(VkInstance instance, VkSurfaceKHR surface);
+public:
+    VDevice(VkInstance instance, VkSurfaceKHR surface, GLFWwindow *window);
     ~VDevice();
 
     VDevice(const VDevice &) = delete;
@@ -34,6 +36,11 @@ class VDevice {
     VkQueue graphicsQueue() { return graphicsQueue_; }
     VkQueue presentQueue() { return presentQueue_; }
     VkSurfaceKHR surface() { return surface_; }
+    GLFWwindow *window() { return window_; }
+    const VkPhysicalDeviceProperties& getPhysicalDeviceProperties() const { return properties; }
+
 
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
+    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 };

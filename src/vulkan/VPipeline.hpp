@@ -26,4 +26,7 @@ public:
 
     // Binds the graphics pipeline to a command buffer.
     void bind(VkCommandBuffer commandBuffer);
+    
+    // Accessor for the pipeline layout
+    VkPipelineLayout getPipelineLayout() const { return pipelineLayout; }
 };

@@ -1,7 +1,10 @@
 #include "Engine.hpp"
+#include "ui/Primitives.hpp"
+#include "util/Color.hpp"
 #include <array>
 #include <cstring>
 #include <iostream>
+#include <memory>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "lib/stb_image.h"
@@ -29,9 +32,10 @@ void Engine::run() {
     cleanup();
 }
 
-void Engine::framebufferResizeCallback(GLFWwindow *window, int width, int height) {
+void Engine::framebufferResizeCallback(GLFWwindow *window, int width,
+                                       int height) {
     auto engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
-    engine->framebufferResized = true;
+    engine->vSwapChain->framebufferResized = true;
 }
 
 void Engine::init() {
@@ -43,13 +47,10 @@ void Engine::init() {
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 
     int iconWidth, iconHeight, iconChannels;
-    unsigned char *pixels = stbi_load_from_memory(
-        iro_engine_icon_png,
-        iro_engine_icon_png_len,
-        &iconWidth,
-        &iconHeight,
-        &iconChannels,
-        STBI_rgb_alpha);
+    unsigned char *pixels =
+        stbi_load_from_memory(iro_engine_icon_png, iro_engine_icon_png_len,
+                              &iconWidth, &iconHeight, &iconChannels,
+                              STBI_rgb_alpha);
 
     if (pixels) {
         GLFWimage images[1];
@@ -65,50 +66,67 @@ void Engine::init() {
     createInstance();
     createSurface();
 
-    vDevice = std::make_unique<VDevice>(instance, surface);
-
-    // Initial creation of swap chain and dependent objects
-    recreateSwapChain();
-
-    createCommandPool();
-    createCommandBuffers();
-    createSyncObjects();
+    vDevice = std::make_unique<VDevice>(instance, surface, window);
+    vSwapChain = std::make_unique<VSwapChain>(*vDevice, VkExtent2D{WIDTH, HEIGHT});
+    vRenderer = std::make_unique<VRenderer>(*vDevice, *vSwapChain);
 
     discord = std::make_unique<Discord>();
     discord->init();
 }
 
 void Engine::mainLoop() {
+    Primitives::Triangle triangle1{};
+
+    triangle1.vertices[0].position = {0.0f, -0.5f};
+    triangle1.vertices[0].color = ColorUtil::rgba_to_uint32_aabbggrr({0.0f, 0.0f, 1.0f, 1.0f});
+
+    triangle1.vertices[1].position = {0.5f, 0.5f};
+    triangle1.vertices[1].color = ColorUtil::rgba_to_uint32_aabbggrr({1.0f, 0.0f, 0.0f, 1.0f});
+
+    triangle1.vertices[2].position = {-0.5f, 0.5f};
+    triangle1.vertices[2].color = ColorUtil::rgba_to_uint32_aabbggrr({0.0f, 1.0f, 0.0f, 1.0f});
+
+    Primitives::Triangle triangle2{};
+
+    triangle2.position_offset = {0.5f, 0.5f};
+
+    triangle2.vertices[0].position = {0.0f, -0.5f};
+    triangle2.vertices[0].color = ColorUtil::rgba_to_uint32_aabbggrr({0.0f, 1.0f, 1.0f, 1.0f});
+
+    triangle2.vertices[1].position = {0.5f, 0.5f};
+    triangle2.vertices[1].color = ColorUtil::rgba_to_uint32_aabbggrr({1.0f, 0.0f, 1.0f, 1.0f});
+
+    triangle2.vertices[2].position = {-0.5f, 0.5f};
+    triangle2.vertices[2].color = ColorUtil::rgba_to_uint32_aabbggrr({1.0f, 1.0f, 0.0f, 1.0f});
+
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
         discord->update();
-        drawFrame();
+
+        float aspect = vRenderer->getAspectRatio();
+        if (aspect > 1.0f) {
+            triangle1.scale = {1.0f / aspect, 1.0f};
+            triangle2.scale = {1.0f / aspect, 1.0f};
+        } else {
+            triangle1.scale = {1.0f, aspect};
+            triangle2.scale = {1.0f, aspect};
+        }
+
+        if (auto cmd = vRenderer->beginFrame()) {
+            vRenderer->beginSwapChainRenderPass(cmd);
+            vRenderer->draw(cmd, triangle1);
+            vRenderer->draw(cmd, triangle2);
+            vRenderer->endSwapChainRenderPass(cmd);
+            vRenderer->endFrame();
+        }
     }
-    // Wait for the logical device to finish operations before cleanup.
+
     vkDeviceWaitIdle(vDevice->device());
 }
 
 void Engine::cleanup() {
-    // Destroy swap chain and pipeline before other resources
-    vPipeline.reset();
+    vRenderer.reset();
     vSwapChain.reset();
-
-    // Destroy semaphores and fences tied to MAX_FRAMES_IN_FLIGHT
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        vkDestroySemaphore(vDevice->device(), imageAvailableSemaphores[i],
-                           nullptr);
-        vkDestroyFence(vDevice->device(), inFlightFences[i], nullptr);
-    }
-
-    // Destroy semaphores tied to swapchain image count
-    for (auto semaphore : renderFinishedSemaphores) {
-        vkDestroySemaphore(vDevice->device(), semaphore, nullptr);
-    }
-
-
-    vkDestroyCommandPool(vDevice->device(), commandPool, nullptr);
-
-    // Smart pointers automatically handle the destruction of these objects.
     vDevice.reset();
 
     vkDestroySurfaceKHR(instance, surface, nullptr);
@@ -116,27 +134,9 @@ void Engine::cleanup() {
 
     glfwDestroyWindow(window);
     glfwTerminate();
-    
+
     discord.reset();
 }
-
-void Engine::recreateSwapChain() {
-    int width = 0, height = 0;
-    glfwGetFramebufferSize(window, &width, &height);
-    while (width == 0 || height == 0) {
-        glfwGetFramebufferSize(window, &width, &height);
-        glfwWaitEvents();
-    }
-    
-    vkDeviceWaitIdle(vDevice->device());
-    
-    vPipeline.reset();
-    vSwapChain.reset();
-    
-    vSwapChain = std::make_unique<VSwapChain>(*vDevice, VkExtent2D{static_cast<uint32_t>(width), static_cast<uint32_t>(height)});
-    vPipeline = std::make_unique<VPipeline>(*vDevice, "core.vert", "core.frag", vSwapChain->getRenderPass());
-}
-
 
 void Engine::createInstance() {
     VkApplicationInfo appInfo{
@@ -175,177 +175,4 @@ void Engine::createSurface() {
         VK_SUCCESS) {
         throw std::runtime_error("Failed to create window surface.");
     }
-}
-
-void Engine::createCommandPool() {
-    QueueFamilyIndices queueFamilyIndices =
-        vDevice->findQueueFamilies(vDevice->physicalDevice());
-
-    VkCommandPoolCreateInfo poolInfo{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-        .queueFamilyIndex = queueFamilyIndices.graphicsFamily.value(),
-    };
-
-    if (vkCreateCommandPool(vDevice->device(), &poolInfo, nullptr,
-                            &commandPool) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create command pool.");
-    }
-}
-
-void Engine::createCommandBuffers() {
-    commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
-
-    VkCommandBufferAllocateInfo allocInfo{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = commandPool,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = static_cast<uint32_t>(commandBuffers.size()),
-    };
-
-    if (vkAllocateCommandBuffers(vDevice->device(), &allocInfo,
-                                 commandBuffers.data()) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to allocate command buffers.");
-    }
-}
-
-void Engine::createSyncObjects() {
-    imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-    inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
-    
-    renderFinishedSemaphores.resize(vSwapChain->imageCount());
-
-    imagesInFlight.resize(vSwapChain->imageCount(), VK_NULL_HANDLE);
-
-    VkSemaphoreCreateInfo semaphoreInfo{
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
-    VkFenceCreateInfo fenceInfo{.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-                                .flags = VK_FENCE_CREATE_SIGNALED_BIT};
-
-    // Create sync objects tied to frames in flight
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        if (vkCreateSemaphore(vDevice->device(), &semaphoreInfo, nullptr,
-                              &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-            vkCreateFence(vDevice->device(), &fenceInfo, nullptr,
-                          &inFlightFences[i]) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create sync objects for a frame.");
-        }
-    }
-
-    // Create sync objects tied to swapchain images
-    for (size_t i = 0; i < vSwapChain->imageCount(); i++) {
-        if (vkCreateSemaphore(vDevice->device(), &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create render finished semaphores.");
-        }
-    }
-}
-
-void Engine::drawFrame() {
-    vkWaitForFences(vDevice->device(), 1, &inFlightFences[currentFrame], VK_TRUE,
-                    UINT64_MAX);
-
-    uint32_t imageIndex;
-    VkResult result = vkAcquireNextImageKHR(
-        vDevice->device(), vSwapChain->getSwapChain(), UINT64_MAX,
-        imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
-
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        recreateSwapChain();
-        return;
-    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        throw std::runtime_error("Failed to acquire swap chain image.");
-    }
-
-    if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
-        vkWaitForFences(vDevice->device(), 1, &imagesInFlight[imageIndex],
-                        VK_TRUE, UINT64_MAX);
-    }
-    imagesInFlight[imageIndex] = inFlightFences[currentFrame];
-
-    vkResetFences(vDevice->device(), 1, &inFlightFences[currentFrame]);
-    vkResetCommandBuffer(commandBuffers[currentFrame], 0);
-
-    VkCommandBufferBeginInfo beginInfo{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-    if (vkBeginCommandBuffer(commandBuffers[currentFrame], &beginInfo) !=
-        VK_SUCCESS) {
-        throw std::runtime_error("Failed to begin recording command buffer.");
-    }
-
-    VkClearValue clearColor = {{{0.0f, 0.68f, 1.0f, 1.0f}}};
-    VkRenderPassBeginInfo renderPassInfo{
-        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .renderPass = vSwapChain->getRenderPass(),
-        .framebuffer = vSwapChain->getFrameBuffer(imageIndex),
-        .renderArea = {.offset = {0, 0}, .extent = vSwapChain->getSwapChainExtent()},
-        .clearValueCount = 1,
-        .pClearValues = &clearColor,
-    };
-
-    vkCmdBeginRenderPass(commandBuffers[currentFrame], &renderPassInfo,
-                         VK_SUBPASS_CONTENTS_INLINE);
-
-    // Set dynamic viewport and scissor state
-    VkViewport viewport{
-        .x = 0.0f,
-        .y = 0.0f,
-        .width = static_cast<float>(vSwapChain->getSwapChainExtent().width),
-        .height = static_cast<float>(vSwapChain->getSwapChainExtent().height),
-        .minDepth = 0.0f,
-        .maxDepth = 1.0f,
-    };
-    VkRect2D scissor{.offset = {0, 0}, .extent = vSwapChain->getSwapChainExtent()};
-    vkCmdSetViewport(commandBuffers[currentFrame], 0, 1, &viewport);
-    vkCmdSetScissor(commandBuffers[currentFrame], 0, 1, &scissor);
-
-    vPipeline->bind(commandBuffers[currentFrame]);
-    vkCmdDraw(commandBuffers[currentFrame], 3, 1, 0, 0); // Draw a hardcoded triangle
-    vkCmdEndRenderPass(commandBuffers[currentFrame]);
-
-    if (vkEndCommandBuffer(commandBuffers[currentFrame]) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to record command buffer.");
-    }
-
-    VkSemaphore waitSemaphores[] = {imageAvailableSemaphores[currentFrame]};
-    VkPipelineStageFlags waitStages[] = {
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-    
-    VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[imageIndex]};
-
-    VkSubmitInfo submitInfo{
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .waitSemaphoreCount = 1,
-        .pWaitSemaphores = waitSemaphores,
-        .pWaitDstStageMask = waitStages,
-        .commandBufferCount = 1,
-        .pCommandBuffers = &commandBuffers[currentFrame],
-        .signalSemaphoreCount = 1,
-        .pSignalSemaphores = signalSemaphores,
-    };
-
-    if (vkQueueSubmit(vDevice->graphicsQueue(), 1, &submitInfo,
-                      inFlightFences[currentFrame]) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to submit draw command buffer.");
-    }
-
-    VkSwapchainKHR swapChains[] = {vSwapChain->getSwapChain()};
-    VkPresentInfoKHR presentInfo{
-        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .waitSemaphoreCount = 1,
-        .pWaitSemaphores = signalSemaphores,
-        .swapchainCount = 1,
-        .pSwapchains = swapChains,
-        .pImageIndices = &imageIndex,
-    };
-
-    result = vkQueuePresentKHR(vDevice->presentQueue(), &presentInfo);
-
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
-        framebufferResized = false;
-        recreateSwapChain();
-    } else if (result != VK_SUCCESS) {
-        throw std::runtime_error("Failed to present swap chain image.");
-    }
-
-    currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
