@@ -11,16 +11,6 @@ VSwapChain::VSwapChain(VDevice &device, VkExtent2D extent)
 
 VSwapChain::~VSwapChain() {
     cleanupSwapChain();
-
-    // Cleanup per-frame sync objects
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        vkDestroySemaphore(vDevice.device(), imageAvailableSemaphores[i], nullptr);
-        vkDestroyFence(vDevice.device(), inFlightFences[i], nullptr);
-    }
-
-    for (auto semaphore : renderFinishedSemaphores) {
-        vkDestroySemaphore(vDevice.device(), semaphore, nullptr);
-    }
 }
 
 void VSwapChain::init() {
@@ -35,43 +25,70 @@ void VSwapChain::cleanupSwapChain() {
     for (auto framebuffer : swapChainFramebuffers) {
         vkDestroyFramebuffer(vDevice.device(), framebuffer, nullptr);
     }
-
-    vkDestroyRenderPass(vDevice.device(), renderPass, nullptr);
+    swapChainFramebuffers.clear();
 
     for (auto imageView : swapChainImageViews) {
         vkDestroyImageView(vDevice.device(), imageView, nullptr);
     }
-    vkDestroySwapchainKHR(vDevice.device(), swapChain, nullptr);
+    swapChainImageViews.clear();
+    
+    if (swapChain != VK_NULL_HANDLE) {
+        vkDestroySwapchainKHR(vDevice.device(), swapChain, nullptr);
+        swapChain = VK_NULL_HANDLE;
+    }
+
+    if (renderPass != VK_NULL_HANDLE) {
+        vkDestroyRenderPass(vDevice.device(), renderPass, nullptr);
+        renderPass = VK_NULL_HANDLE;
+    }
+
+    for (auto& semaphore : imageAvailableSemaphores) {
+        vkDestroySemaphore(vDevice.device(), semaphore, nullptr);
+    }
+    imageAvailableSemaphores.clear();
+
+    for (auto& semaphore : renderFinishedSemaphores) {
+        vkDestroySemaphore(vDevice.device(), semaphore, nullptr);
+    }
+    renderFinishedSemaphores.clear();
+
+    for (auto& fence : inFlightFences) {
+        vkDestroyFence(vDevice.device(), fence, nullptr);
+    }
+    inFlightFences.clear();
+
+    imagesInFlight.clear();
 }
 
 void VSwapChain::recreate() {
     int width = 0, height = 0;
     glfwGetFramebufferSize(vDevice.window(), &width, &height);
+    
     while (width == 0 || height == 0) {
         glfwGetFramebufferSize(vDevice.window(), &width, &height);
         glfwWaitEvents();
     }
+
     windowExtent = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
 
     vkDeviceWaitIdle(vDevice.device());
     cleanupSwapChain();
-    createSwapChain();
-    createImageViews();
-    createRenderPass();
-    createFramebuffers();
+    init();
 }
 
 VkResult VSwapChain::acquireNextImage(uint32_t *pImageIndex) {
     vkWaitForFences(vDevice.device(), 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
     return vkAcquireNextImageKHR(
         vDevice.device(), swapChain, UINT64_MAX,
-        imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, pImageIndex);
+        imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, pImageIndex
+    );
 }
 
 VkResult VSwapChain::submitCommandBuffers(const VkCommandBuffer *pCommandBuffers, const uint32_t *pImageIndex) {
     if (imagesInFlight[*pImageIndex] != VK_NULL_HANDLE) {
         vkWaitForFences(vDevice.device(), 1, &imagesInFlight[*pImageIndex], VK_TRUE, UINT64_MAX);
     }
+
     imagesInFlight[*pImageIndex] = inFlightFences[currentFrame];
 
     VkSubmitInfo submitInfo{};
@@ -91,23 +108,20 @@ VkResult VSwapChain::submitCommandBuffers(const VkCommandBuffer *pCommandBuffers
 
     vkResetFences(vDevice.device(), 1, &inFlightFences[currentFrame]);
     if (vkQueueSubmit(vDevice.graphicsQueue(), 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
-        throw std::runtime_error("failed to submit draw command buffer!");
+        throw std::runtime_error("Failed to submit draw command buffer.");
     }
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = signalSemaphores;
-
-    VkSwapchainKHR swapChains[] = {swapChain};
     presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains = swapChains;
+    presentInfo.pSwapchains = &swapChain;
     presentInfo.pImageIndices = pImageIndex;
 
     auto result = vkQueuePresentKHR(vDevice.presentQueue(), &presentInfo);
 
     currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
-
     return result;
 }
 
@@ -169,20 +183,15 @@ void VSwapChain::createImageViews() {
             .image = swapChainImages[i],
             .viewType = VK_IMAGE_VIEW_TYPE_2D,
             .format = swapChainImageFormat,
-            .components = {
-                    .r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                    .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                    .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                    .a = VK_COMPONENT_SWIZZLE_IDENTITY,
-                },
             .subresourceRange = {
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .baseMipLevel = 0,
-                    .levelCount = 1,
-                    .baseArrayLayer = 0,
-                    .layerCount = 1,
-                },
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+            },
         };
+
         if (vkCreateImageView(vDevice.device(), &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create image views.");
         }
@@ -259,8 +268,8 @@ void VSwapChain::createFramebuffers() {
 
 void VSwapChain::createSyncObjects() {
     imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-    inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
     renderFinishedSemaphores.resize(imageCount());
+    inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
     imagesInFlight.resize(imageCount(), VK_NULL_HANDLE);
 
     VkSemaphoreCreateInfo semaphoreInfo{};
@@ -273,13 +282,13 @@ void VSwapChain::createSyncObjects() {
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         if (vkCreateSemaphore(vDevice.device(), &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
             vkCreateFence(vDevice.device(), &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create per-frame synchronization objects!");
+            throw std::runtime_error("Failed to create synchronization objects for a frame.");
         }
     }
 
     for (size_t i = 0; i < imageCount(); i++) {
         if (vkCreateSemaphore(vDevice.device(), &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create per-image synchronization objects!");
+            throw std::runtime_error("Failed to create render finished semaphores.");
         }
     }
 }
@@ -300,8 +309,7 @@ SwapChainSupportDetails VSwapChain::querySwapChainSupport(VkPhysicalDevice devic
 
     if (presentModeCount != 0) {
         details.presentModes.resize(presentModeCount);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(
-            device, surface, &presentModeCount, details.presentModes.data());
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data());
     }
 
     return details;
@@ -323,7 +331,7 @@ VkPresentModeKHR VSwapChain::chooseSwapPresentMode(const std::vector<VkPresentMo
             return availablePresentMode;
         }
     }
-    return VK_PRESENT_MODE_FIFO_KHR; // Guaranteed to be available
+    return VK_PRESENT_MODE_FIFO_KHR;
 }
 
 VkExtent2D VSwapChain::chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities) {
@@ -332,11 +340,7 @@ VkExtent2D VSwapChain::chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabili
     }
 
     VkExtent2D actualExtent = windowExtent;
-    actualExtent.width =
-        std::clamp(actualExtent.width, capabilities.minImageExtent.width,
-                   capabilities.maxImageExtent.width);
-    actualExtent.height =
-        std::clamp(actualExtent.height, capabilities.minImageExtent.height,
-                   capabilities.maxImageExtent.height);
+    actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+    actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
     return actualExtent;
 }

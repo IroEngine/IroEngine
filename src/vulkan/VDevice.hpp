@@ -3,13 +3,14 @@
 #include "Vulkan.hpp"
 #include <vector>
 
-// Encapsulates a Vulkan physical and logical device.
+// Encapsulates a Vulkan physical device (GPU) and its corresponding logical device.
 class VDevice {
+
 private:
     void pickPhysicalDevice();
     void createLogicalDevice();
 
-    // Helper functions for physical device selection.
+    // Helpers for physical device selection
     bool isDeviceSuitable(VkPhysicalDevice device);
     bool checkDeviceExtensionSupport(VkPhysicalDevice device);
 
@@ -23,6 +24,7 @@ private:
     VkQueue graphicsQueue_;
     VkQueue presentQueue_;
 
+
 public:
     VDevice(VkInstance instance, VkSurfaceKHR surface, GLFWwindow *window);
     ~VDevice();
@@ -30,7 +32,7 @@ public:
     VDevice(const VDevice &) = delete;
     VDevice &operator=(const VDevice &) = delete;
 
-    // Accessors for core device components.
+    // Accessors
     VkDevice device() { return device_; }
     VkPhysicalDevice physicalDevice() { return physicalDevice_; }
     VkQueue graphicsQueue() { return graphicsQueue_; }
@@ -39,8 +41,9 @@ public:
     GLFWwindow *window() { return window_; }
     const VkPhysicalDeviceProperties& getPhysicalDeviceProperties() const { return properties; }
 
-
+    // Utility functions
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+
 };

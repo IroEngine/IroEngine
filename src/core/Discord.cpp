@@ -1,16 +1,15 @@
 #define DISCORDPP_IMPLEMENTATION
 #include "Discord.hpp"
-#include <iostream>
 #include <ctime>
+#include <iostream>
 
 Discord::Discord() = default;
-
 Discord::~Discord() = default;
 
 void Discord::init() {
     client = std::make_unique<discordpp::Client>();
 
-    // Callback for debugging connection issues
+    // Useful for debugging connection issues.
     // client->AddLogCallback([](std::string message, discordpp::LoggingSeverity severity){
     //     if (severity >= discordpp::LoggingSeverity::Warning) {
     //         std::cerr << "[Discord] " << message << std::endl;
@@ -19,22 +18,18 @@ void Discord::init() {
     //     }
     // }, discordpp::LoggingSeverity::Info);
 
-    uint64_t clientId = 1395908581886394419;
-    client->SetApplicationId(clientId);
+    client->SetApplicationId(1395908581886394419);
 
-    // Create the Activity
-    discordpp::Activity activity{};
-    activity.SetState("Developing");
+    discordpp::Activity activity {};
     activity.SetType(discordpp::ActivityTypes::Playing);
+    activity.SetState("Developing");
 
-    // Set Assets
-    discordpp::ActivityAssets assets{};
+    discordpp::ActivityAssets assets {};
     assets.SetLargeImage("placeholder_icon");
     assets.SetLargeText("Iro Engine");
     activity.SetAssets(assets);
 
-    // Set Timestamps
-    discordpp::ActivityTimestamps timestamps{};
+    discordpp::ActivityTimestamps timestamps {};
     timestamps.SetStart(time(nullptr));
     activity.SetTimestamps(timestamps);
 
@@ -46,7 +41,7 @@ void Discord::init() {
         }
     });
 
-    // Asynchronously connect to Discord
+    // Connection is asynchronous.
     client->Connect();
     std::cout << "Connecting to Discord...\n";
 }

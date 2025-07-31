@@ -79,7 +79,7 @@ obj/shaders/%.frag.o: $(SHADER_SRC_DIR)/%.frag
 	$(Q)rm $(TMP_SPV)
 
 # Target to build and run the application
-test: all
+test: clean all
 	@cp lib/linux/* bin/
 	@cd bin && ./IroEngine
 

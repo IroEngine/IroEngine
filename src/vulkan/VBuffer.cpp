@@ -1,18 +1,19 @@
 #include "VBuffer.hpp"
-#include <stdexcept>
 #include <cstring>
+#include <stdexcept>
 
-VBuffer::VBuffer(VDevice &device, VkDeviceSize instanceSize,
-                 uint32_t instanceCount, VkBufferUsageFlags usageFlags,
-                 VkMemoryPropertyFlags memoryPropertyFlags)
-    : vDevice{device}, instanceSize{instanceSize},
-      instanceCount{instanceCount}, usageFlags{usageFlags},
-      memoryPropertyFlags{memoryPropertyFlags} {
-    alignmentSize = getAlignment(instanceSize,
-                               vDevice.getPhysicalDeviceProperties().limits.minUniformBufferOffsetAlignment);
+VBuffer::VBuffer(VDevice &device, VkDeviceSize instanceSize, uint32_t instanceCount, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags)
+    : vDevice{device}, instanceSize{instanceSize}, instanceCount{instanceCount}, usageFlags{usageFlags}, memoryPropertyFlags{memoryPropertyFlags} {
+
+    // For uniform buffers, data must be aligned to the device's specific requirement.
+    if ((usageFlags & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) == VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) {
+        alignmentSize = getAlignment(instanceSize, vDevice.getPhysicalDeviceProperties().limits.minUniformBufferOffsetAlignment);
+    } else {
+        alignmentSize = instanceSize;
+    }
+
     bufferSize = alignmentSize * instanceCount;
-    vDevice.createBuffer(bufferSize, usageFlags, memoryPropertyFlags, buffer,
-                       memory);
+    vDevice.createBuffer(bufferSize, usageFlags, memoryPropertyFlags, buffer, memory);
 }
 
 VBuffer::~VBuffer() {
@@ -21,12 +22,11 @@ VBuffer::~VBuffer() {
     vkFreeMemory(vDevice.device(), memory, nullptr);
 }
 
-VkDeviceSize VBuffer::getAlignment(VkDeviceSize instanceSize,
-                                     VkDeviceSize minOffsetAlignment) {
+VkDeviceSize VBuffer::getAlignment(VkDeviceSize instanceSize, VkDeviceSize minOffsetAlignment) {
     if (minOffsetAlignment > 0) {
-        return (instanceSize + minOffsetAlignment - 1) &
-               ~(minOffsetAlignment - 1);
+        return (instanceSize + minOffsetAlignment - 1) & ~(minOffsetAlignment - 1);
     }
+
     return instanceSize;
 }
 
@@ -56,7 +56,7 @@ void VBuffer::writeToBuffer(void *data, VkDeviceSize size, VkDeviceSize offset) 
 }
 
 VkResult VBuffer::flush(VkDeviceSize size, VkDeviceSize offset) {
-    VkMappedMemoryRange mappedRange = {};
+    VkMappedMemoryRange mappedRange {};
     mappedRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
     mappedRange.memory = memory;
     mappedRange.offset = offset;
@@ -64,9 +64,8 @@ VkResult VBuffer::flush(VkDeviceSize size, VkDeviceSize offset) {
     return vkFlushMappedMemoryRanges(vDevice.device(), 1, &mappedRange);
 }
 
-VkDescriptorBufferInfo VBuffer::descriptorInfo(VkDeviceSize size,
-                                                 VkDeviceSize offset) {
-    return VkDescriptorBufferInfo{
+VkDescriptorBufferInfo VBuffer::descriptorInfo(VkDeviceSize size, VkDeviceSize offset) {
+    return VkDescriptorBufferInfo {
         buffer,
         offset,
         size,
@@ -74,7 +73,7 @@ VkDescriptorBufferInfo VBuffer::descriptorInfo(VkDeviceSize size,
 }
 
 VkResult VBuffer::invalidate(VkDeviceSize size, VkDeviceSize offset) {
-    VkMappedMemoryRange mappedRange = {};
+    VkMappedMemoryRange mappedRange {};
     mappedRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
     mappedRange.memory = memory;
     mappedRange.offset = offset;

@@ -5,7 +5,8 @@
 
 namespace ColorUtil {
 
-uint32_t rgba_to_uint32_aabbggrr(const glm::vec4 &color) {
+// Packs a normalized RGBA color into a 32-bit integer with AABBGGRR format.
+inline uint32_t rgba_to_uint32_aabbggrr(const glm::vec4 &color) {
     uint8_t r = static_cast<uint8_t>(color.r * 255.0f);
     uint8_t g = static_cast<uint8_t>(color.g * 255.0f);
     uint8_t b = static_cast<uint8_t>(color.b * 255.0f);

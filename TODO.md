@@ -15,7 +15,7 @@
 - [x] Implement swap chain recreation for window resizing
 - [x] Move shader files to build into the build file instead of a separate folder
 ### UI
-- [x] Get a basic primitives started for UI
+- [x] Get basic primitives started for UI
 - [ ] Render text
 - [ ] Create a basic UI
 ### Fixes
