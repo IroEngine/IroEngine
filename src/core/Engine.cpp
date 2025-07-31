@@ -97,12 +97,25 @@ void Engine::init() {
 }
 
 void Engine::mainLoop() {
+    double lastTime = glfwGetTime();
+    int frameCount = 0;
+    
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
         discord->update();
 
         // Animate the busy indicator.
         float time = glfwGetTime();
+
+        frameCount++;
+        if (time - lastTime >= 1.0) {
+            std::string title = "Iro Engine - " + std::to_string(frameCount) + " FPS";
+            glfwSetWindowTitle(window, title.c_str());
+
+            frameCount = 0;
+            lastTime = time;
+        }
+
         float scale = 0.5f + 0.02f * sin(time * 5.0f);
         uiManager->get("triangle")->setScale({scale, scale});
 

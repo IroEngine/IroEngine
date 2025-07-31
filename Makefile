@@ -3,11 +3,11 @@ CXX := g++
 SHADERC := glslc
 
 # Compiler flags
-CXXFLAGS := -std=c++23 -g -O2 -Wall
+CXXFLAGS := -std=c++23 -g -O2 -Wall -march=native -flto=auto
 
 # Linker flags and libraries
 LDFLAGS := $(shell pkg-config --libs vulkan glfw3)
-LDFLAGS += -L./lib/linux -L./src/lib -Wl,-rpath,'$$ORIGIN' -ldiscord_partner_sdk -lpthread -ldl
+LDFLAGS += -L./lib/linux -L./src/lib -Wl,-rpath,'$$ORIGIN' -ldiscord_partner_sdk -lpthread -ldl -flto=auto
 
 # Check the Operating System
 OS := $(shell uname -s)
@@ -66,7 +66,7 @@ obj/shaders/%.vert.o: $(SHADER_SRC_DIR)/%.vert
 	@mkdir -p $(@D)
 	$(eval TMP_SPV := $(shell mktemp))
 	$(eval SYMBOL_NAME := $(subst .,_,$(notdir $<)))
-	$(Q)$(SHADERC) $< -o $(TMP_SPV)
+	$(Q)$(SHADERC) -O $< -o $(TMP_SPV)
 	$(Q)xxd -i -n spirv_$(SYMBOL_NAME) $(TMP_SPV) | $(CXX) $(CXXFLAGS) $(CPPFLAGS) -x c++ -c - -o $@
 	$(Q)rm $(TMP_SPV)
 
@@ -74,7 +74,7 @@ obj/shaders/%.frag.o: $(SHADER_SRC_DIR)/%.frag
 	@mkdir -p $(@D)
 	$(eval TMP_SPV := $(shell mktemp))
 	$(eval SYMBOL_NAME := $(subst .,_,$(notdir $<)))
-	$(Q)$(SHADERC) $< -o $(TMP_SPV)
+	$(Q)$(SHADERC) -O $< -o $(TMP_SPV)
 	$(Q)xxd -i -n spirv_$(SYMBOL_NAME) $(TMP_SPV) | $(CXX) $(CXXFLAGS) $(CPPFLAGS) -x c++ -c - -o $@
 	$(Q)rm $(TMP_SPV)
 
