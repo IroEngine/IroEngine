@@ -1,6 +1,5 @@
 #include "VRenderer.hpp"
 #include "VBuffer.hpp"
-#include "ui/Primitives.hpp"
 #include <array>
 #include <stdexcept>
 
@@ -32,8 +31,6 @@ void VRenderer::recreateSwapChain() {
 
     vkDeviceWaitIdle(vDevice.device());
 
-    // The pipeline is dependent on the render pass, which is tied to the swapchain.
-    // So, we must recreate the pipeline when the swapchain is recreated.
     vSwapChain.recreate();
     vPipeline = std::make_unique<VPipeline>(vDevice, "core.vert", "core.frag", vSwapChain.getRenderPass());
 }
@@ -159,34 +156,26 @@ void VRenderer::endSwapChainRenderPass(VkCommandBuffer commandBuffer) {
     vkCmdEndRenderPass(commandBuffer);
 }
 
-void VRenderer::draw(VkCommandBuffer commandBuffer, const Primitives::Primitive &primitive)
-{
+void VRenderer::draw(VkCommandBuffer commandBuffer, const Primitives::Primitive &primitive) {
     if (primitive.getVertexCount() == 0)
         return;
 
     vPipeline->bind(commandBuffer);
 
-    // NEW: Assemble the full push constant data structure.
     Primitives::PushConstantData pushData{};
 
     // Set transform data from the primitive.
     pushData.position = primitive.getTransform().position;
     pushData.scale = primitive.getTransform().scale;
 
-    // Correct the object's scale for the window's aspect ratio to prevent stretching.
     float aspect = vSwapChain.extentAspectRatio();
-    if (aspect > 1.0f)
-    { // Wider than tall
+    if (aspect > 1.0f) {
         pushData.scale.x /= aspect;
-    }
-    else
-    { // Taller than wide
+    } else {
         pushData.scale.y *= aspect;
     }
 
-    // NEW: Check if this primitive needs our special interpolation.
-    if (primitive.useBilinearInterpolation() && primitive.getVertexCount() == 4)
-    {
+    if (primitive.useBilinearInterpolation() && primitive.getVertexCount() == 4) {
         pushData.isBilinear = 1;
         // Load the four corner colors from the primitive's vertex data.
         // Assumes vertex order in C++ is BL, BR, TR, TL.
@@ -194,9 +183,7 @@ void VRenderer::draw(VkCommandBuffer commandBuffer, const Primitives::Primitive 
         pushData.colors[1] = primitive.getVertices()[1].color;
         pushData.colors[2] = primitive.getVertices()[2].color;
         pushData.colors[3] = primitive.getVertices()[3].color;
-    }
-    else
-    {
+    } else {
         pushData.isBilinear = 0;
     }
 
@@ -204,16 +191,12 @@ void VRenderer::draw(VkCommandBuffer commandBuffer, const Primitives::Primitive 
     VkDeviceSize offsets[] = {0};
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, buffers, offsets);
 
-    // UPDATED: Push the new, larger data structure.
     vkCmdPushConstants(commandBuffer, vPipeline->getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(Primitives::PushConstantData), &pushData);
 
-    if (primitive.getIndexCount() > 0)
-    {
+    if (primitive.getIndexCount() > 0) {
         vkCmdBindIndexBuffer(commandBuffer, primitive.getIndexBuffer()->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(commandBuffer, primitive.getIndexCount(), 1, 0, 0, 0);
-    }
-    else
-    {
+    } else {
         vkCmdDraw(commandBuffer, primitive.getVertexCount(), 1, 0, 0);
     }
 }

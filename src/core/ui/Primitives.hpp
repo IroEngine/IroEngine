@@ -1,7 +1,7 @@
 #pragma once
 
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
-#include "vulkan/VDevice.hpp"
+#include "core/vulkan/VDevice.hpp"
 #include <cstdint>
 #include <glm/glm.hpp>
 #include <memory>

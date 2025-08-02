@@ -1,6 +1,6 @@
 #include "Primitives.hpp"
 #include "util/Color.hpp"
-#include "vulkan/VBuffer.hpp"
+#include "core/vulkan/VBuffer.hpp"
 
 namespace Primitives {
 

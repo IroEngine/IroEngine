@@ -3,7 +3,7 @@
 #include "VDevice.hpp"
 #include "VPipeline.hpp"
 #include "VSwapChain.hpp"
-#include "ui/Primitives.hpp"
+#include "core/ui/Primitives.hpp"
 #include <memory>
 #include <vector>
 

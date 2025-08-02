@@ -12,7 +12,7 @@ LDFLAGS += -L./lib/linux -L./src/lib -Wl,-rpath,'$$ORIGIN' -ldiscord_partner_sdk
 # Check the Operating System
 OS := $(shell uname -s)
 
-# Add fontconfig library only if we are on Linux
+# Add fontconfig library only if built on Linux
 ifeq ($(OS), Linux)
     LDFLAGS += $(shell pkg-config --libs fontconfig)
 endif
@@ -32,7 +32,7 @@ ICON_FILE := icon.png
 ICON_OBJ_FILE := $(OBJ_DIR)/icon.o
 
 # Shader files
-SHADER_SRC_DIR := ./src/shaders
+SHADER_SRC_DIR := ./src/core/vulkan/shaders
 SHADER_SRC_FILES := $(wildcard $(SHADER_SRC_DIR)/*.vert $(SHADER_SRC_DIR)/*.frag)
 SHADER_OBJ_FILES := $(patsubst $(SHADER_SRC_DIR)/%.vert,obj/shaders/%.vert.o,$(wildcard $(SHADER_SRC_DIR)/*.vert))
 SHADER_OBJ_FILES += $(patsubst $(SHADER_SRC_DIR)/%.frag,obj/shaders/%.frag.o,$(wildcard $(SHADER_SRC_DIR)/*.frag))
