@@ -60,8 +60,33 @@ void Engine::init() {
 
     vDevice = std::make_unique<VDevice>(instance, surface, window);
     vSwapChain = std::make_unique<VSwapChain>(*vDevice, VkExtent2D{INITIAL_WIDTH, INITIAL_HEIGHT});
-    vRenderer = std::make_unique<VRenderer>(*vDevice, *vSwapChain);
+    vRenderer = std::make_unique<VRenderer>(*vDevice, *vSwapChain, threadResources);
     uiManager = std::make_unique<UIManager>();
+
+    // Multi-thread command resources
+    const std::size_t workerCount = std::max(1u, std::thread::hardware_concurrency() - 1u);
+
+    for (auto &frameVec : threadResources) {
+        frameVec.resize(workerCount);
+
+        QueueFamilyIndices q = vDevice->findQueueFamilies(vDevice->physicalDevice());
+        for (auto &res : frameVec) {
+            VkCommandPoolCreateInfo pi {
+                .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+                .flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+                .queueFamilyIndex = q.graphicsFamily.value()
+            };
+            vkCreateCommandPool(vDevice->device(), &pi, nullptr, &res.pool);
+
+            VkCommandBufferAllocateInfo ai {
+                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+                .commandPool = res.pool,
+                .level = VK_COMMAND_BUFFER_LEVEL_SECONDARY,
+                .commandBufferCount = 1
+            };
+            vkAllocateCommandBuffers(vDevice->device(), &ai, &res.buffer);
+        }
+    }
 
     // UI
 
@@ -99,38 +124,112 @@ void Engine::init() {
 void Engine::mainLoop() {
     double lastTime = glfwGetTime();
     int frameCount = 0;
-    
+
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
         discord->update();
 
-        // Animate the busy indicator.
-        float time = glfwGetTime();
-
-        frameCount++;
-        if (time - lastTime >= 1.0) {
+        const float t = glfwGetTime();
+        ++frameCount;
+        if (t - lastTime >= 1.0) {
             std::string title = "Iro Engine - " + std::to_string(frameCount) + " FPS";
             glfwSetWindowTitle(window, title.c_str());
-
             frameCount = 0;
-            lastTime = time;
+            lastTime = t;
         }
 
-        float scale = 0.5f + 0.02f * sin(time * 5.0f);
-        uiManager->get("triangle")->setScale({scale, scale});
+        const float s = 0.5f + 0.02f * std::sin(t * 5.0f);
+        uiManager->get("triangle")->setScale({s, s});
 
-        // Render the scene.
-        if (auto cmd = vRenderer->beginFrame()) {
-            vRenderer->beginSwapChainRenderPass(cmd);
+        VkCommandBuffer primary = vRenderer->beginFrame();
+        if (!primary)
+            continue;
 
-            for (const auto &pair : uiManager->getElements()) {
-                vRenderer->draw(cmd, *pair.second);
-            }
+        // Record (or reuse) secondary command buffers in parallel
+        auto &frameRes = threadResources[vRenderer->getFrameIndex()];
+        const std::size_t workerCount = frameRes.size();
+        std::vector<VkCommandBuffer> secondaries;
+        secondaries.reserve(workerCount);
 
-            vRenderer->endSwapChainRenderPass(cmd);
-            vRenderer->endFrame();
+        std::size_t w = 0;
+        const auto &all = uiManager->getElements();
+        auto it = all.begin();
+
+        while (it != all.end()) {
+            // Gather up to 64 primitives into one batch
+            std::vector<Primitives::Primitive *> batch;
+            batch.reserve(64);
+            for (std::size_t k = 0; k < 64 && it != all.end(); ++k, ++it)
+                batch.push_back(it->second.get());
+
+            const std::size_t id = w++ % workerCount;
+            jobSystem.push([&, id, batch] {
+                auto &res = frameRes[id];
+                const VkFramebuffer fb = vRenderer->getCurrentFramebuffer();
+
+                bool needsRecord = !res.recorded || (res.framebufferUsed != fb);
+                if (!needsRecord) {
+                    for (auto *p : batch)
+                        if (p->dirty()) { needsRecord = true; break; }
+                }
+
+                if (!needsRecord) {
+                    for (auto *p : batch) p->clearDirty();
+                    return;
+                }
+
+                vkResetCommandBuffer(res.buffer, 0);
+
+                VkCommandBufferInheritanceInfo inh {
+                    .sType       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO,
+                    .renderPass  = vRenderer->getSwapChainRenderPass(),
+                    .subpass     = 0,
+                    .framebuffer = fb
+                };
+
+                VkCommandBufferBeginInfo bi {
+                    .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                    .flags            = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT | VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
+                    .pInheritanceInfo = &inh
+                };
+                vkBeginCommandBuffer(res.buffer, &bi);
+
+                VkViewport vp {
+                    0, 0,
+                    static_cast<float>(vSwapChain->getExtent().width),
+                    static_cast<float>(vSwapChain->getExtent().height),
+                    0.0f, 1.0f
+                };
+
+                VkRect2D sc {{0, 0}, vSwapChain->getExtent()};
+                vkCmdSetViewport(res.buffer, 0, 1, &vp);
+                vkCmdSetScissor (res.buffer, 0, 1, &sc);
+
+                for (auto *p : batch) {
+                    vRenderer->draw(res.buffer, *p);
+                    p->clearDirty();
+                }
+
+                vkEndCommandBuffer(res.buffer);
+                res.recorded        = true;
+                res.framebufferUsed = fb;
+            });
         }
+
+        jobSystem.wait();
+
+        for (auto &res : frameRes)
+            if (res.recorded)
+                secondaries.push_back(res.buffer);
+
+        vRenderer->beginSwapChainRenderPass(primary);
+        if (!secondaries.empty())
+            vkCmdExecuteCommands(primary, static_cast<uint32_t>(secondaries.size()), secondaries.data());
+        
+        vRenderer->endSwapChainRenderPass(primary);
+        vRenderer->endFrame();
     }
+
     vkDeviceWaitIdle(vDevice->device());
 }
 
@@ -138,6 +237,17 @@ void Engine::cleanup() {
     uiManager.reset();
     vRenderer.reset();
     vSwapChain.reset();
+
+    vkDeviceWaitIdle(vDevice->device());
+
+    for (auto &vec : threadResources) {
+        for (auto &res : vec) {
+            if (res.pool)
+                vkDestroyCommandPool(vDevice->device(), res.pool, nullptr);
+        }
+        vec.clear();
+    }
+
     vDevice.reset();
     discord.reset();
 

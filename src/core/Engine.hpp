@@ -2,11 +2,14 @@
 
 #include "Discord.hpp"
 #include "ui/UIManager.hpp"
+#include "util/JobSystem.hpp"
 #include "vulkan/VDevice.hpp"
 #include "vulkan/VRenderer.hpp"
 #include "vulkan/VSwapChain.hpp"
+#include "vulkan/ThreadCommandResources.hpp"
 #include <memory>
 #include <vector>
+#include <thread>
 
 // Encapsulates the entire application, managing the window, core components, and the main event loop.
 class Engine {
@@ -38,8 +41,10 @@ private:
     // --- UI Management ---
     std::unique_ptr<UIManager> uiManager;
 
+    // --- Thread Management ---
+    JobSystem jobSystem;
+    std::array<std::vector<ThreadCommandResources>, VSwapChain::MAX_FRAMES_IN_FLIGHT> threadResources;
 
 public:
     void run();
-
 };

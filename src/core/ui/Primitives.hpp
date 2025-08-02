@@ -54,6 +54,8 @@ protected:
     std::unique_ptr<VBuffer> indexBuffer;
     uint32_t indexCount = 0;
 
+    bool dirty_ = true;
+
 
 public:
     Primitive(VDevice &device, const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices = {});
@@ -65,6 +67,9 @@ public:
     void setScale(const glm::vec2 &scl) { transform.scale = scl; }
     void setVertices(const std::vector<Vertex> &vertices);
     void setIndices(const std::vector<uint32_t> &indices);
+
+    bool dirty() const { return dirty_; }
+    void clearDirty() { dirty_ = false; }
 
     const VBuffer &getVertexBuffer() const { return *vertexBuffer; }
     uint32_t getVertexCount() const { return vertexCount; }

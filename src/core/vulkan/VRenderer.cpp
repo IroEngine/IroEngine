@@ -3,8 +3,8 @@
 #include <array>
 #include <stdexcept>
 
-VRenderer::VRenderer(VDevice &device, VSwapChain &swapChain)
-    : vDevice(device), vSwapChain(swapChain) {
+VRenderer::VRenderer(VDevice &device, VSwapChain &swapChain, std::array<std::vector<ThreadCommandResources>, VSwapChain::MAX_FRAMES_IN_FLIGHT> &threadRes)
+    : vDevice(device), vSwapChain(swapChain), engineThreadResources(threadRes) {
     recreateSwapChain();
     createCommandPool();
     createCommandBuffers();
@@ -22,6 +22,10 @@ VkCommandBuffer VRenderer::getCurrentCommandBuffer() const {
     return commandBuffers[m_currentFrameIndex];
 }
 
+VkFramebuffer VRenderer::getCurrentFramebuffer() const {
+    return vSwapChain.getFrameBuffer(m_currentImageIndex);
+}
+
 void VRenderer::recreateSwapChain() {
     auto extent = vSwapChain.getExtent();
     while (extent.width == 0 || extent.height == 0) {
@@ -32,6 +36,11 @@ void VRenderer::recreateSwapChain() {
     vkDeviceWaitIdle(vDevice.device());
 
     vSwapChain.recreate();
+
+    for (auto &frameVec : engineThreadResources) // engineThreadResources is
+        for (auto &res : frameVec)               // the array you already
+            res.recorded = false;
+
     vPipeline = std::make_unique<VPipeline>(vDevice, "core.vert", "core.frag", vSwapChain.getRenderPass());
 }
 
@@ -125,23 +134,21 @@ void VRenderer::beginSwapChainRenderPass(VkCommandBuffer commandBuffer) {
     renderPassInfo.renderArea.offset = {0, 0};
     renderPassInfo.renderArea.extent = vSwapChain.getExtent();
 
-    std::array<VkClearValue, 1> clearValues{};
+    std::array<VkClearValue, 1> clearValues {};
     clearValues[0].color = {1.0f, 1.0f, 1.0f, 1.0f};
     renderPassInfo.clearValueCount = 1;
     renderPassInfo.pClearValues = clearValues.data();
 
-    vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 
-    VkViewport viewport {};
-    viewport.x = 0.0f;
-    viewport.y = 0.0f;
-    viewport.width = static_cast<float>(vSwapChain.getExtent().width);
-    viewport.height = static_cast<float>(vSwapChain.getExtent().height);
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-    VkRect2D scissor{{0, 0}, vSwapChain.getExtent()};
-    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-    vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+    // VkViewport viewport {};
+    // viewport.x = 0.0f;
+    // viewport.y = 0.0f;
+    // viewport.width = static_cast<float>(vSwapChain.getExtent().width);
+    // viewport.height = static_cast<float>(vSwapChain.getExtent().height);
+    // viewport.minDepth = 0.0f;
+    // viewport.maxDepth = 1.0f;
+    // VkRect2D scissor {{0, 0}, vSwapChain.getExtent()};
 }
 
 void VRenderer::endSwapChainRenderPass(VkCommandBuffer commandBuffer) {
