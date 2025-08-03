@@ -1,18 +1,32 @@
 # Compiler
 CXX := g++
 SHADERC := glslc
+STRIP := strip
+UPX := upx
 
-# Compiler flags
+# Default flags (debug/dev)
 CXXFLAGS := -std=c++23 -g -O2 -Wall -march=native -flto=auto
-
-# Linker flags and libraries
 LDFLAGS := $(shell pkg-config --libs vulkan glfw3)
-LDFLAGS += -L./lib/linux -L./src/lib -Wl,-rpath,'$$ORIGIN' -ldiscord_partner_sdk -lpthread -ldl -flto=auto
+LDFLAGS += -L./lib/linux -L./src/lib -Wl,-rpath,'$$ORIGIN' \
+           -ldiscord_partner_sdk -lpthread -ldl -flto=auto
+
+# Release overrides (enable when RELEASE=1 is passed)
+ifeq ($(RELEASE),1)
+  CXXFLAGS := -std=c++23 -Os -DNDEBUG -fno-plt -fvisibility=hidden \
+              -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables \
+              -fno-unwind-tables -fno-ident -pipe -flto=auto
+
+  LDFLAGS := $(shell pkg-config --libs vulkan glfw3)
+  LDFLAGS += -L./lib/linux -L./src/lib -Wl,-rpath,'$$ORIGIN' \
+             -ldiscord_partner_sdk -lpthread -ldl -flto=auto \
+             -Wl,--gc-sections -Wl,-O1 -Wl,--as-needed \
+             -Wl,-z,relro,-z,now -pie
+endif
 
 # Check the Operating System
 OS := $(shell uname -s)
 
-# Add fontconfig library only if built on Linux
+# Add fontconfig only if built on Linux
 ifeq ($(OS), Linux)
     LDFLAGS += $(shell pkg-config --libs fontconfig)
 endif
@@ -31,12 +45,11 @@ OBJ_FILES := $(patsubst ./src/%.cpp,$(OBJ_DIR)/%.o,$(SRC_FILES))
 ICON_FILE := assets/logo/png/64x.png
 ICON_OBJ_FILE := $(OBJ_DIR)/icon.o
 
-# Shader files
+# Shaders
 SHADER_SRC_DIR := ./src/core/vulkan/shaders
 SHADER_SRC_FILES := $(wildcard $(SHADER_SRC_DIR)/*.vert $(SHADER_SRC_DIR)/*.frag)
 SHADER_OBJ_FILES := $(patsubst $(SHADER_SRC_DIR)/%.vert,obj/shaders/%.vert.o,$(wildcard $(SHADER_SRC_DIR)/*.vert))
 SHADER_OBJ_FILES += $(patsubst $(SHADER_SRC_DIR)/%.frag,obj/shaders/%.frag.o,$(wildcard $(SHADER_SRC_DIR)/*.frag))
-
 
 Q :=
 ifneq (,$(findstring test,$(MAKECMDGOALS)))
@@ -78,14 +91,27 @@ obj/shaders/%.frag.o: $(SHADER_SRC_DIR)/%.frag
 	$(Q)xxd -i -n spirv_$(SYMBOL_NAME) $(TMP_SPV) | $(CXX) $(CXXFLAGS) $(CPPFLAGS) -x c++ -c - -o $@
 	$(Q)rm $(TMP_SPV)
 
-# Target to build and run the application
+# Build and run
 test: clean all
 	@cp lib/linux/* bin/
 	@cd bin && ./IroEngine
 
+# Build a release build
+release: clean
+	$(MAKE) RELEASE=1 all
+	@cp -f lib/linux/* bin/ 2>/dev/null || true
+	@echo "Stripping symbols..."
+	@$(STRIP) --strip-unneeded bin/IroEngine || true
+	@command -v $(UPX) >/dev/null 2>&1 && { \
+		echo "Compressing with UPX..."; \
+		$(UPX) --best --lzma bin/IroEngine || true; \
+	} || { echo "UPX not found; skipping compression."; }
+	@echo "Packaging..."
+	@tar -C bin -czf IroEngine.tar.gz .
+
 # Clean up build files
 clean:
-	@rm -rf ./bin ./obj
+	@rm -rf ./bin ./obj IroEngine.tar.gz
 
 # Phony targets
-.PHONY: all clean test
+.PHONY: all clean test release
