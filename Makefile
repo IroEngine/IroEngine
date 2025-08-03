@@ -2,9 +2,8 @@
 CXX := g++
 SHADERC := glslc
 STRIP := strip
-UPX := upx
 
-# Default flags (debug/dev)
+# Default flags
 CXXFLAGS := -std=c++23 -g -O2 -Wall -march=native -flto=auto
 LDFLAGS := $(shell pkg-config --libs vulkan glfw3)
 LDFLAGS += -L./lib/linux -L./src/lib -Wl,-rpath,'$$ORIGIN' \
@@ -102,10 +101,8 @@ release: clean
 	@cp -f lib/linux/* bin/ 2>/dev/null || true
 	@echo "Stripping symbols..."
 	@$(STRIP) --strip-unneeded bin/IroEngine || true
-	@command -v $(UPX) >/dev/null 2>&1 && { \
-		echo "Compressing with UPX..."; \
-		$(UPX) --best --lzma bin/IroEngine || true; \
-	} || { echo "UPX not found; skipping compression."; }
+	@echo "Removing .sdk_ready..."
+	@rm -f bin/.sdk_ready
 	@echo "Packaging..."
 	@tar -C bin -czf IroEngine.tar.gz .
 

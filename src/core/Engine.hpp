@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Discord.hpp"
+#include "discord/Discord.hpp"
 #include "ui/UIManager.hpp"
 #include "util/JobSystem.hpp"
 #include "vulkan/VDevice.hpp"
