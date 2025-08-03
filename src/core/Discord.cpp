@@ -25,7 +25,7 @@ void Discord::init() {
     activity.SetState("Developing");
 
     discordpp::ActivityAssets assets {};
-    assets.SetLargeImage("placeholder_icon");
+    assets.SetLargeImage("iroengine_logo");
     assets.SetLargeText("Iro Engine");
     activity.SetAssets(assets);
 

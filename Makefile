@@ -28,7 +28,7 @@ OBJ_DIR := obj
 OBJ_FILES := $(patsubst ./src/%.cpp,$(OBJ_DIR)/%.o,$(SRC_FILES))
 
 # Icon file
-ICON_FILE := icon.png
+ICON_FILE := assets/logo/png/64x.png
 ICON_OBJ_FILE := $(OBJ_DIR)/icon.o
 
 # Shader files
