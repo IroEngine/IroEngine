@@ -101,6 +101,7 @@ release: clean
 	@cp -f lib/linux/* bin/ 2>/dev/null || true
 	@echo "Stripping symbols..."
 	@$(STRIP) --strip-unneeded bin/IroEngine || true
+	@$(STRIP) --strip-unneeded bin/libdiscord_partner_sdk.so || true
 	@echo "Removing .sdk_ready..."
 	@rm -f bin/.sdk_ready
 	@echo "Packaging..."
